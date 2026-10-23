@@ -1,0 +1,37 @@
+CREATE TABLE IF NOT EXISTS categories (
+  id        SERIAL PRIMARY KEY,
+  name      VARCHAR(50) NOT NULL UNIQUE,
+  min_price NUMERIC(10,2) NOT NULL CHECK (min_price >= 0),
+  max_price NUMERIC(10,2) NOT NULL,
+  CHECK (max_price >= min_price)
+);
+
+INSERT INTO categories (name, min_price, max_price) VALUES
+  ('Pieczywo', 1, 30),
+  ('Elektronika', 50, 10000),
+  ('Napoje', 2, 50);
+
+
+CREATE TABLE IF NOT EXISTS forbidden_names (
+  id   SERIAL PRIMARY KEY,
+  name VARCHAR(50) NOT NULL UNIQUE
+);
+
+INSERT INTO forbidden_names (name) VALUES ('admin'), ('test'), ('null');
+
+
+DROP TABLE IF EXISTS products;
+CREATE TABLE products (
+  id          SERIAL PRIMARY KEY,
+  name        VARCHAR(20) NOT NULL,
+  price       NUMERIC(10,2) NOT NULL,
+  quantity    INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+  category_id INTEGER NOT NULL REFERENCES categories(id)
+);
+CREATE UNIQUE INDEX products_name_unique ON products (LOWER(name));
+
+
+INSERT INTO products (name, price, quantity, category_id) VALUES
+  ('Rogal', 3.50, 20, 1),
+  ('Sluchawki', 199.99, 5, 2),
+  ('Woda', 2.50, 100, 3);

@@ -1,8 +1,20 @@
 import { NextResponse } from "next/server";
-import { pool } from "../../../../lib/db";
- 
+import * as service from "../../../../lib/Service/product";
+import { handleError } from "../../../../lib/errors";
+
 export async function GET() {
-  const { rows } = await pool.query("SELECT * FROM products ORDER BY id");
-  return NextResponse.json(rows);
+  try {
+    return NextResponse.json(await service.list());
+  } catch (e) {
+    return handleError(e);
+  }
 }
- 
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json().catch(() => null);
+    return NextResponse.json(await service.create(body), { status: 201 });
+  } catch (e) {
+    return handleError(e);
+  }
+}

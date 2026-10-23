@@ -1,26 +1,43 @@
 import { NextResponse } from "next/server";
-import { pool } from "../../../../../lib/db";
+import * as service from "../../../../../lib/Service/product";
+import { handleError } from "../../../../../lib/errors";
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> } 
-) {
-  const { id } = await params;
-  const num = Number(id);
+type Ctx = { params: Promise<{ id: string }> };
 
-  const { rows } = await pool.query("SELECT * FROM products WHERE id = $1", [num]);
-
-  return NextResponse.json(rows[0]);
+export async function GET(_req: Request, { params }: Ctx) {
+  try {
+    const { id } = await params;
+    return NextResponse.json(await service.get(id));
+  } catch (e) {
+    return handleError(e);
+  }
 }
 
-export async function POST(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> } 
-) {
-  const { id } = await params;
-  const num = Number(id);
+export async function PUT(req: Request, { params }: Ctx) {
+  try {
+    const { id } = await params;
+    const body = await req.json().catch(() => null);
+    return NextResponse.json(await service.update(id, body));
+  } catch (e) {
+    return handleError(e);
+  }
+}
 
-  const { rows } = await pool.query("SELECT * FROM products WHERE id = $1", [num]);
+export async function DELETE(_req: Request, { params }: Ctx) {
+  try {
+    const { id } = await params;
+    return NextResponse.json(await service.remove(id));
+  } catch (e) {
+    return handleError(e);
+  }
+}
 
-  return NextResponse.json(rows[0]);
+export async function PATCH(req: Request, { params }: Ctx) {
+  try {
+    const { id } = await params;
+    const body = await req.json().catch(() => null);
+    return NextResponse.json(await service.patch(id, body));
+  } catch (e) {
+    return handleError(e);
+  }
 }
