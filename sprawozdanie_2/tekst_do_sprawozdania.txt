@@ -1,0 +1,161 @@
+TEKST DO SPRAWOZDANIA - PROJEKT 2 (brakujące sekcje: 3C, 3D, 3E, 3F, 4, 5)
+Wklejać pod "B. Maszyna stanów". [ZRZUT: ...] = plik z folderu sprawozdanie_2/zrzuty/.
+Ścieżki względem Clone/nextboilerplate/.
+
+----------------------------------------------------------------
+POPRAWKI W TYM, CO JUŻ JEST W SPRAWOZDANIU
+----------------------------------------------------------------
+1.1 Struktura projektu - komentarze w lib/Service są zamienione miejscami:
+    notification.ts                 //logika biznesowa
+    notificationStateMachine.ts     //maszyna stanów
+    notificationValidators.ts       //walidacja i konwersja UTC   (było: UTF)
+Do drzewa warto dopisać pliki z 2.2 i 2.3:
+    app/api/v1/notifications/[id]/send-now/route.ts    //wymuszenie wysyłki
+    app/api/v1/notifications/process-ready/route.ts    //przetwarzanie wsadowe
+    app/metrics/route.ts                               //metryki dla Prometheusa
+    lib/Service/notificationDelivery.ts                //wysyłka EMAIL i PUSH
+    lib/Service/notificationDispatcher.ts              //wybór kanału
+    lib/Service/notificationWorker.ts                  //worker cykliczny
+    lib/Service/metrics.ts                             //budowanie metryk
+    instrumentation.ts                                 //start workera z serwerem
+    scripts/seed-notifications.mjs                     //przykładowe powiadomienia
+    docker-compose.yml, .config/prometheus.yml         //MailHog, ntfy, Prometheus
+
+
+----------------------------------------------------------------
+C. Kanały komunikacji
+----------------------------------------------------------------
+Kanał wybiera dispatcher na podstawie pola channel powiadomienia:
+     lib/Service/notificationDispatcher.ts
+EMAIL → sendEmailNotification, PUSH → sendPushNotification, inny kanał → błąd.
+Sama wysyłka jest w lib/Service/notificationDelivery.ts. Jeśli wysyłka się nie uda,
+powiadomienie dostaje status FAILED, a jeśli się uda - SENT (lib/Service/notification.ts,
+executeNotification).
+
+MailHog i ntfy działają lokalnie w Dockerze (docker-compose.yml), dzięki czemu nic nie trafia
+do prawdziwych odbiorców.
+
+Powiadomienia PUSH:
+Opis implementacji
+Pole recipient to nazwa topicu w ntfy. Treść powiadomienia jest wysyłana zwykłym żądaniem
+POST na http://localhost:8088/<topic>; jeśli ntfy nie odpowie w 5 s albo zwróci błąd,
+wysyłka jest nieudana.
+     lib/Service/notificationDelivery.ts - sendPushNotification
+
+Ntfy.sh - prosty system powiadomień push oparty o HTTP (publikuj/subskrybuj). Nadawca wysyła
+POST na topic, a odbiorca (przeglądarka albo aplikacja na telefon) subskrybuje ten topic
+i dostaje wiadomości od razu. UI: http://localhost:8088/test
+
+[ZRZUT: 3C-push-1-swagger-post.png]  utworzenie zaplanowanego powiadomienia PUSH w Swaggerze
+[ZRZUT: 3C-push-2-ntfy.png]          to samo powiadomienie dostarczone przez worker do ntfy
+
+Powiadomienia Email:
+Opis implementacji:
+Wiadomość jest wysyłana przez SMTP biblioteką nodemailer na localhost:1025, czyli do MailHoga.
+Temat "Notification", nadawca noreply@ztp.local, treść = content powiadomienia.
+     lib/Service/notificationDelivery.ts - sendEmailNotification
+
+Mailhog - testowy serwer SMTP. Przechwytuje wszystkie wysłane maile zamiast wysyłać je dalej
+i pokazuje je w przeglądarce. UI: http://localhost:8025
+
+[ZRZUT: 3C-email-1-swagger-post.png]       utworzenie zaplanowanego powiadomienia EMAIL w Swaggerze
+[ZRZUT: 3C-email-3-mailhog-wiadomosc.png]  dostarczony mail w MailHogu
+(opcjonalnie [ZRZUT: 3C-swagger-send-now.png] - wymuszenie wysyłki od razu przez send-now)
+
+
+----------------------------------------------------------------
+D. Worker cykliczny
+----------------------------------------------------------------
+Worker co 5 sekund sprawdza bazę i wysyła wszystkie powiadomienia PENDING, którym minął
+scheduled_at, czyli zastępuje ręczne wywoływanie wysyłki.
+     lib/Service/notificationWorker.ts
+
+Uruchamia się razem z aplikacją: Next.js przy starcie serwera wywołuje funkcję register()
+z pliku instrumentation.ts, a ona startuje workera (setInterval) w tym samym procesie co
+serwer. Nie trzeba więc odpalać osobnego programu - wystarczy npm run dev.
+W terminalu widać: [WORKER] Uruchomiono worker. Interwał: 5 s
+oraz po wysyłce: [WORKER] Przetworzono N powiadomień.
+
+Zabezpieczenia: kolejny przebieg nie startuje, dopóki poprzedni się nie skończy, a po
+przeładowaniu kodu w trybie dev nie powstaje drugi worker.
+
+Pomocnicze endpointy:
+POST /api/v1/notifications/{id}/send-now - wysyła jedno powiadomienie od razu
+POST /api/v1/notifications/process-ready - to samo co jeden przebieg workera, zwraca processed_count
+
+[ZRZUT: 3D-swagger-process-ready.png]
+[ZRZUT: 3D-lista-po-wysylce-workera.png]  status zmieniony na SENT bez klikania
+
+
+----------------------------------------------------------------
+E. Planowanie czasowe z uwzględnieniem konwersji do czasu UTC
+----------------------------------------------------------------
+Klient podaje scheduled_at i timezone, np. "2026-11-08T03:57:32" i "Europe/Warsaw".
+Sama godzina nie wystarcza, bo 9:00 w Warszawie i w Nowym Jorku to inny moment.
+
+Serwis (lib/Service/notificationValidators.ts):
+- sprawdza, czy strefa jest poprawna,
+- traktuje datę bez strefy jako czas lokalny w podanej strefie i przelicza ją na UTC
+  (biblioteka Luxon),
+- odrzuca datę z przeszłości (422).
+
+W bazie zapisywany jest już czas UTC (kolumna TIMESTAMPTZ), a worker porównuje go z bieżącym
+czasem UTC. Stałe przesunięcie by nie zadziałało: Warszawa ma +1 zimą i +2 latem.
+
+Przykład ze zrzutu: 03:57:32 Europe/Warsaw → 02:57:32Z
+[ZRZUT: 3C-push-1-swagger-post.png]  (ten sam zrzut co przy PUSH - widać scheduled_at w UTC)
+
+
+----------------------------------------------------------------
+F. Testy (opcjonalnie - nie ma tego w szablonie, ale jest punktowane w etapie 2)
+----------------------------------------------------------------
+__tests__/notifications.test.ts - testy integracyjne: POST, GET, walidacja, send-now
+(EMAIL i PUSH, wiadomości naprawdę trafiają do MailHoga i ntfy), process-ready,
+idempotency_key i /metrics. Jak w projekcie 1 każdy test działa w transakcji
+wycofywanej na końcu, więc baza zostaje bez zmian. Uruchomienie: npm test
+[ZRZUT: 3F-npm-test-2.3.png]
+
+
+----------------------------------------------------------------
+4. Idempotencja
+----------------------------------------------------------------
+Idempotencja oznacza, że powtórzenie tej samej operacji (np. ponowienie żądania po błędzie sieci)
+nie powinno jej wykonać drugi raz. Pierwszym krokiem jest nadanie każdej operacji
+unikalnego identyfikatora.
+
+Każde powiadomienie dostaje idempotency_key generowany po stronie serwera:
+notif_ + 24 losowe bajty (lib/Service/notification.ts, generateIdempotencyKey).
+Klient nie może go podać ani zmienić - wartość z żądania jest ignorowana - ale klucz jest
+zwracany w odpowiedzi jako techniczny identyfikator, np. do logów.
+W bazie kolumna jest UNIQUE NOT NULL (sql/004.Notifications.Idempotency.sql).
+
+[ZRZUT: 4-swagger-idempotency-key.png]
+
+
+----------------------------------------------------------------
+5. Prometheus
+----------------------------------------------------------------
+Prometheus to system monitoringu. Co określony czas (u nas 5 s) sam pobiera metryki
+z endpointu aplikacji (model pull) i zapisuje je w bazie szeregów czasowych, dzięki czemu
+można oglądać, jak zmieniały się w czasie.
+
+Endpoint GET /metrics (app/metrics/route.ts, treść budowana w lib/Service/metrics.ts)
+zwraca tekst w formacie Prometheusa:
+notifications_sent_total, notifications_failed_total, notifications_pending_total,
+notifications_cancelled_total oraz notifications_by_channel{status, channel}.
+[ZRZUT: 5-metrics.png]
+
+Konfiguracja: kontener prometheus w docker-compose.yml i plik .config/prometheus.yml
+(scrape co 5 s, adres localhost:3000/metrics). UI: http://localhost:9090
+Prometheus działa w sieci hosta (network_mode: host), bo firewall na moim komputerze
+blokował połączenie z kontenera przez host.docker.internal.
+[ZRZUT: 5-prometheus-targets.png]  cel ma status UP
+
+Przykładowe dane: npm run seed dodaje 13 powiadomień - 8 do wysłania w ciągu ~3 min,
+2 anulowane, 1 nieudane, 2 na jutro. Na wykresie widać, jak worker je wysyła:
+pending spada z 10 do 2, sent rośnie.
+[ZRZUT: 5-prom-pending-graph.png]
+[ZRZUT: 5-prom-sent-graph.png]
+[ZRZUT: 5-prom-by-channel-table.png]
+(opcjonalnie: 5-prom-by-channel-graph.png, 5-prom-by-channel-sent-graph.png,
+ 5-prom-pending-table.png, 5-prom-cancelled-table.png)
