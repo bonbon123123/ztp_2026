@@ -28,8 +28,12 @@ export default function NotificationList() {
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   const load = useCallback(async () => {
-    const res = await fetch(API);
-    if (res.ok) setItems(await res.json());
+    try {
+      const res = await fetch(API);
+      if (res.ok) setItems(await res.json());
+    } catch {
+      // serwer chwilowo niedostępny (np. restart dev) lub przerwane żądanie — spróbujemy przy następnym odświeżeniu
+    }
   }, []);
 
   // auto-odświeżanie co 5 s (widać, jak worker sam zmienia PENDING → SENT); checkbox je wstrzymuje
