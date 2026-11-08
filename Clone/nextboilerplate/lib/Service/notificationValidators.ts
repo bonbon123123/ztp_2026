@@ -2,6 +2,7 @@ import { DateTime, IANAZone } from "luxon";
 import { NotificationChannel, isChannel } from "../Model/notification";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const TOPIC_RE = /^[A-Za-z0-9_-]{1,64}$/; // nazwa topicu ntfy
 
 export function validateContent(content: unknown, errors: string[]) {
   if (typeof content !== "string" || !content.trim()) errors.push("content: treść jest wymagana");
@@ -16,6 +17,8 @@ export function validateRecipient(recipient: unknown, channel: unknown, errors: 
     errors.push("recipient: odbiorca jest wymagany");
   } else if (channel === NotificationChannel.EMAIL && !EMAIL_RE.test(recipient.trim())) {
     errors.push("recipient: dla kanału EMAIL wymagany poprawny adres e-mail");
+  } else if (channel === NotificationChannel.PUSH && !TOPIC_RE.test(recipient.trim())) {
+    errors.push("recipient: dla kanału PUSH nazwa topicu ntfy (litery, cyfry, - i _, max 64 znaki)");
   }
 }
 

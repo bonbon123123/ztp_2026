@@ -1,0 +1,17 @@
+# Serwery do testowania powiadomień (Postgres działa w osobnym kontenerze postgres_ztp_project1)
+services:
+  mailhog:
+    image: mailhog/mailhog
+    container_name: mailhog_ztp
+    restart: unless-stopped
+    ports:
+      - "8025:8025" # UI
+      - "1025:1025" # SMTP
+
+  ntfy:
+    image: binwiederhier/ntfy
+    container_name: ntfy_ztp
+    command: serve
+    restart: unless-stopped
+    ports:
+      - "8088:80"

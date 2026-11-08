@@ -3,6 +3,7 @@ import * as repo from "../Repository/notification";
 import * as productRepo from "../Repository/product";
 import { NotificationInput, NotificationStatus, isStatus } from "../Model/notification";
 import { canTransition } from "./notificationStateMachine";
+import { dispatchNotification } from "./notificationDispatcher";
 import {
   validateChannel,
   validateContent,
@@ -71,4 +72,42 @@ export async function updateStatus(rawId: string, body: any) {
     throw new AppError(422, `Przejście ze statusu ${current.status} do ${newStatus} jest niedozwolone.`);
   }
   return repo.updateStatus(id, newStatus);
+}
+
+/** Realizacja pojedynczego powiadomienia: dispatch → SENT, błąd wysyłki → FAILED. */
+export async function executeNotification(id: number) {
+  const n = await repo.findById(id);
+  if (!n) throw new AppError(404, "Powiadomienie nie zostało znalezione");
+  if (n.status !== NotificationStatus.PENDING) {
+    throw new AppError(422, "Wykonać można wyłącznie powiadomienie w statusie PENDING.");
+  }
+
+  let result: NotificationStatus = NotificationStatus.SENT;
+  try {
+    await dispatchNotification(n);
+  } catch (e) {
+    console.error(`[DELIVERY] Powiadomienie #${id} nieudane: ${e}`);
+    result = NotificationStatus.FAILED;
+  }
+
+  const saved = await repo.setStatusIfPending(id, result);
+  if (!saved) throw new AppError(422, "Status powiadomienia zmienił się w trakcie wysyłki.");
+  return saved;
+}
+
+export async function sendNow(rawId: string) {
+  return executeNotification(parseId(rawId));
+}
+
+/** Przetwarzanie wsadowe wszystkich gotowych powiadomień; zwraca ich liczbę. */
+export async function processReadyNotifications() {
+  const ready = await repo.findReady();
+  for (const n of ready) {
+    try {
+      await executeNotification(n.id);
+    } catch (e) {
+      console.error(`[WORKER] Pominięto #${n.id}: ${e}`);
+    }
+  }
+  return ready.length;
 }

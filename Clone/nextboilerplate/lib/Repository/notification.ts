@@ -29,3 +29,22 @@ export async function updateStatus(id: number, status: NotificationStatus): Prom
   );
   return rows[0];
 }
+
+/** Powiadomienia gotowe do realizacji: PENDING z planowanym czasem <= teraz (UTC). */
+export async function findReady(): Promise<Notification[]> {
+  const { rows } = await pool.query(
+    `SELECT ${COLUMNS} FROM notifications
+     WHERE status = 'PENDING' AND scheduled_at <= now()
+     ORDER BY scheduled_at`
+  );
+  return rows;
+}
+
+/** Zapis wyniku wysyłki — tylko jeśli rekord nadal jest PENDING (nie nadpisze anulowania w międzyczasie). */
+export async function setStatusIfPending(id: number, status: NotificationStatus): Promise<Notification | undefined> {
+  const { rows } = await pool.query(
+    `UPDATE notifications SET status = $1 WHERE id = $2 AND status = 'PENDING' RETURNING ${COLUMNS}`,
+    [status, id]
+  );
+  return rows[0];
+}

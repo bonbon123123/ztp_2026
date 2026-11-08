@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 
 const API = "/api/v1/notifications";
 
@@ -25,10 +25,35 @@ function local(utc: string, tz: string) {
 export default function NotificationList() {
   const [items, setItems] = useState<Notification[]>([]);
   const [message, setMessage] = useState("");
+  const [autoRefresh, setAutoRefresh] = useState(true);
 
-  async function load() {
+  const load = useCallback(async () => {
     const res = await fetch(API);
-    setItems(await res.json());
+    if (res.ok) setItems(await res.json());
+  }, []);
+
+  // auto-odświeżanie co 5 s (widać, jak worker sam zmienia PENDING → SENT); checkbox je wstrzymuje
+  useEffect(() => {
+    const first = setTimeout(load, 0); // pierwsze pobranie zaraz po wyrenderowaniu
+    const t = autoRefresh ? setInterval(load, 5000) : undefined;
+    return () => {
+      clearTimeout(first);
+      clearInterval(t);
+    };
+  }, [autoRefresh, load]);
+
+  async function sendNow(id: number) {
+    const res = await fetch(`${API}/${id}/send-now`, { method: "POST" });
+    const data = await res.json();
+    setMessage(`${res.status} ${res.ok ? `#${id} → ${data.status}` : data.error}`);
+    await load();
+  }
+
+  async function processReady() {
+    const res = await fetch(`${API}/process-ready`, { method: "POST" });
+    const data = await res.json();
+    setMessage(`${res.status} ${res.ok ? `przetworzono: ${data.processed_count}` : data.error}`);
+    await load();
   }
 
   async function cancel(id: number) {
@@ -47,6 +72,11 @@ export default function NotificationList() {
       <strong>Powiadomienia</strong>
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={load}>Odśwież</button>
+        <button onClick={processReady}>Przetwórz gotowe</button>
+        <label>
+          <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
+          auto-odświeżanie (5 s)
+        </label>
         <span>{message}</span>
       </div>
       <table>
@@ -67,7 +97,14 @@ export default function NotificationList() {
               <td>{local(n.scheduled_at, n.timezone)} ({n.timezone})</td>
               <td>{n.product_id ?? "-"}</td>
               <td>{n.status}</td>
-              <td>{n.status === "PENDING" && <button onClick={() => cancel(n.id)}>Anuluj</button>}</td>
+              <td>
+                {n.status === "PENDING" && (
+                  <>
+                    <button onClick={() => sendNow(n.id)}>Wyślij teraz</button>{" "}
+                    <button onClick={() => cancel(n.id)}>Anuluj</button>
+                  </>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
