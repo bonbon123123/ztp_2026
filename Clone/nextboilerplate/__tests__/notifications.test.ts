@@ -18,6 +18,7 @@ import { GET as GET_LIST, POST } from "../app/api/v1/notifications/route";
 import { GET as GET_ONE } from "../app/api/v1/notifications/[id]/route";
 import { POST as SEND_NOW } from "../app/api/v1/notifications/[id]/send-now/route";
 import { POST as PROCESS_READY } from "../app/api/v1/notifications/process-ready/route";
+import { GET as METRICS } from "../app/metrics/route";
 
 const URL = "http://localhost/api/v1/notifications";
 const MAILHOG_API = "http://localhost:8025/api/v2";
@@ -222,9 +223,9 @@ describe("POST /api/v1/notifications/process-ready", () => {
     // rekord z datą w przeszłości — wstawiony bezpośrednio, bo API nie pozwala na przeszłą datę
     const content = `Process-ready ${RUN}`;
     const { rows } = await mockClient.query(
-      `INSERT INTO notifications (content, channel, recipient, scheduled_at, timezone)
-       VALUES ($1, 'PUSH', $2, now() - interval '1 minute', 'Europe/Warsaw') RETURNING id`,
-      [content, TOPIC]
+      `INSERT INTO notifications (content, channel, recipient, scheduled_at, timezone, idempotency_key)
+       VALUES ($1, 'PUSH', $2, now() - interval '1 minute', 'Europe/Warsaw', $3) RETURNING id`,
+      [content, TOPIC, `notif_test_${RUN}`]
     );
     const id = rows[0].id;
     const future = await create(pushPayload()); // zaplanowane za 10 min — nie powinno zostać ruszone
@@ -238,5 +239,51 @@ describe("POST /api/v1/notifications/process-ready", () => {
     expect(ready.status).toBe("SENT");
     const notYet = await (await GET_ONE(new Request(`${URL}/${future.id}`), ctx(future.id))).json();
     expect(notYet.status).toBe("PENDING");
+  });
+});
+
+describe("idempotency_key", () => {
+  it("serwer generuje unikalny klucz notif_… dla każdego powiadomienia", async () => {
+    const a = await create(pushPayload());
+    const b = await create(pushPayload());
+    expect(a.idempotency_key).toMatch(/^notif_[A-Za-z0-9_-]{32}$/);
+    expect(b.idempotency_key).toMatch(/^notif_/);
+    expect(a.idempotency_key).not.toBe(b.idempotency_key);
+  });
+
+  it("klucz podany przez klienta jest ignorowany", async () => {
+    const created = await create({ ...pushPayload(), idempotency_key: "moj_klucz" });
+    expect(created.idempotency_key).not.toBe("moj_klucz");
+    expect(created.idempotency_key).toMatch(/^notif_/);
+  });
+});
+
+describe("GET /metrics", () => {
+  const value = (text: string, name: string) => {
+    const line = text.split("\n").find((l) => l.startsWith(name + " ") || l.startsWith(name + "{"));
+    return Number(line?.split(" ").pop());
+  };
+
+  it("zwraca metryki w formacie Prometheus", async () => {
+    const res = await METRICS();
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/plain");
+    const text = await res.text();
+    for (const name of ["sent", "failed", "pending", "cancelled"]) {
+      expect(text).toContain(`# TYPE notifications_${name}_total gauge`);
+      expect(text).toMatch(new RegExp(`^notifications_${name}_total \\d+$`, "m"));
+    }
+    expect(text).toContain('notifications_by_channel{status="SENT",channel="EMAIL"}');
+    expect(text.match(/^notifications_by_channel\{/gm)).toHaveLength(8);
+  });
+
+  it("liczba oczekujących rośnie po utworzeniu powiadomienia", async () => {
+    const before = await (await METRICS()).text();
+    await create(emailPayload());
+    const after = await (await METRICS()).text();
+    expect(value(after, "notifications_pending_total")).toBe(value(before, "notifications_pending_total") + 1);
+    expect(value(after, 'notifications_by_channel{status="PENDING",channel="EMAIL"}')).toBe(
+      value(before, 'notifications_by_channel{status="PENDING",channel="EMAIL"}') + 1
+    );
   });
 });

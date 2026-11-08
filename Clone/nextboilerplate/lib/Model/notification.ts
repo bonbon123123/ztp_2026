@@ -30,6 +30,7 @@ export type Notification = {
   status: NotificationStatus;
   product_id: number | null;
   created_at: string;
+  idempotency_key: string; // generowany przez serwer, nie przyjmowany z wejścia
 };
 
 export type NotificationInput = {
@@ -39,4 +40,5 @@ export type NotificationInput = {
   scheduled_at: Date; // znormalizowane do UTC
   timezone: string;
   product_id: number | null;
+  idempotency_key: string;
 };

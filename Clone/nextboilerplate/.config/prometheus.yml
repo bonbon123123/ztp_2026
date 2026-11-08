@@ -1,0 +1,9 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: "nextjs_notifications"
+    metrics_path: /metrics
+    static_configs:
+      # aplikacja Next.js (npm run dev) na hoście; kontener działa w sieci hosta (network_mode: host)
+      - targets: ["localhost:3000"]

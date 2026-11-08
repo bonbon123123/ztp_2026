@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { AppError } from "../errors";
 import * as repo from "../Repository/notification";
 import * as productRepo from "../Repository/product";
@@ -11,6 +12,11 @@ import {
   validateScheduledAt,
   validateTimezone,
 } from "./notificationValidators";
+
+/** Identyfikator operacji generowany po stronie serwera (odpowiednik secrets.token_urlsafe(24)). */
+export function generateIdempotencyKey() {
+  return `notif_${randomBytes(24).toString("base64url")}`;
+}
 
 function parseId(raw: string) {
   const id = Number(raw);
@@ -45,6 +51,7 @@ async function validate(body: any): Promise<NotificationInput> {
     scheduled_at: scheduledUtc!.toJSDate(),
     timezone: body.timezone,
     product_id: productId,
+    idempotency_key: generateIdempotencyKey(),
   };
 }
 

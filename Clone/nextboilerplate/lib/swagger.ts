@@ -85,6 +85,29 @@ const notificationSchemas = {
       status: { $ref: "#/components/schemas/NotificationStatus" },
       product_id: { type: "integer", nullable: true },
       created_at: { type: "string", format: "date-time" },
+      idempotency_key: {
+        type: "string",
+        readOnly: true,
+        description: "Identyfikator operacji generowany przez serwer",
+        example: "notif_Xk3...",
+      },
+    },
+  },
+};
+
+// /metrics leży w app/metrics (poza apiFolder), więc opis dokładamy ręcznie do specyfikacji powiadomień
+const metricsPath = {
+  "/metrics": {
+    get: {
+      tags: ["Notifications"],
+      summary: "Metryki powiadomień w formacie Prometheus",
+      description: "Liczba powiadomień wg statusu oraz wg statusu i kanału. Odczytywane przez Prometheusa co 5 s.",
+      responses: {
+        200: {
+          description: "Metryki (text/plain, format Prometheus)",
+          content: { "text/plain": { schema: { type: "string", example: "notifications_sent_total 3" } } },
+        },
+      },
     },
   },
 };
@@ -107,6 +130,7 @@ export const notificationsSpec = () =>
       openapi: "3.0.0",
       info: { title: "Notifications API", version: "1.0" },
       tags: [{ name: "Notifications" }],
+      paths: metricsPath,
       components: { schemas: notificationSchemas },
     },
   });
