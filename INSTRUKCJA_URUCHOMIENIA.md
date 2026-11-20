@@ -30,7 +30,7 @@ Odczekaj ~5 s i wgraj tabele po kolei (z katalogu `ztp_2026/`):
 
 ```bash
 cd ../..          # jesteś w ztp_2026/
-for f in sql/001.Create.Tables sql/002.History.Table.sql sql/003.Notifications.sql sql/004.Notifications.Idempotency.sql; do
+for f in sql/001.Create.Tables sql/002.History.Table.sql sql/003.Notifications.sql sql/004.Notifications.Idempotency.sql sql/005.Identity.sql; do
   docker exec -i postgres_ztp_project1 psql -U appuser appdb < "$f"
 done
 ```
@@ -38,11 +38,11 @@ done
 Windows (PowerShell), zamiast pętli wyżej:
 
 ```powershell
-Get-Content sql\001.Create.Tables, sql\002.History.Table.sql, sql\003.Notifications.sql, sql\004.Notifications.Idempotency.sql | docker exec -i postgres_ztp_project1 psql -U appuser appdb
+Get-Content sql\001.Create.Tables, sql\002.History.Table.sql, sql\003.Notifications.sql, sql\004.Notifications.Idempotency.sql, sql\005.Identity.sql | docker exec -i postgres_ztp_project1 psql -U appuser appdb
 ```
 
 Sprawdzenie: `docker exec postgres_ztp_project1 psql -U appuser appdb -c "\dt"` powinno pokazać
-5 tabel: categories, forbidden_names, notifications, product_history, products.
+7 tabel: categories, forbidden_names, notifications, product_history, products, user_sessions, users.
 
 ## 3. Plik .env
 
@@ -85,6 +85,7 @@ W terminalu powinno pojawić się `[WORKER] Uruchomiono worker. Interwał: 5 s`.
 | Strona główna (formularze, lista powiadomień) | http://localhost:3000 |
 | Swagger — produkty | http://localhost:3000/product-docs |
 | Swagger — powiadomienia | http://localhost:3000/notifications-docs |
+| Swagger — identity (rejestracja, logowanie, sesja) | http://localhost:3000/identity-docs |
 | Metryki | http://localhost:3000/metrics |
 | MailHog (maile) | http://localhost:8025 |
 | ntfy (push, topic `test`) | http://localhost:8088/test |
@@ -100,7 +101,7 @@ Przy działającej bazie, MailHogu i ntfy (kroki 2 i 4):
 npm test
 ```
 
-Powinno przejść 19/19. Testy nie zmieniają bazy (transakcja + rollback), ale dokładają
+Powinno przejść 37/37. Testy nie zmieniają bazy (transakcja + rollback), ale dokładają
 wiadomości testowe w MailHogu i ntfy.
 
 ## 7. Przykładowe dane dla Prometheusa

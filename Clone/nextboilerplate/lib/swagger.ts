@@ -134,3 +134,77 @@ export const notificationsSpec = () =>
       components: { schemas: notificationSchemas },
     },
   });
+
+const identitySchemas = {
+  Error,
+  RegisterRequest: {
+    type: "object",
+    required: ["email", "password", "confirm_password", "first_name", "last_name"],
+    properties: {
+      email: { type: "string", format: "email", example: "jan.kowalski@example.com" },
+      password: {
+        type: "string",
+        format: "password",
+        description: "Min. 8 znaków, wielka litera, cyfra i znak specjalny",
+        example: "StrongPass1!",
+      },
+      confirm_password: { type: "string", format: "password", example: "StrongPass1!" },
+      first_name: { type: "string", description: "2–50 znaków", example: "Jan" },
+      last_name: { type: "string", description: "2–50 znaków", example: "Kowalski" },
+    },
+  },
+  LoginRequest: {
+    type: "object",
+    required: ["email", "password"],
+    properties: {
+      email: { type: "string", format: "email", example: "jan.kowalski@example.com" },
+      password: { type: "string", format: "password", example: "StrongPass1!" },
+    },
+  },
+  User: {
+    type: "object",
+    properties: {
+      id: { type: "integer", example: 1 },
+      email: { type: "string", example: "jan.kowalski@example.com" },
+      first_name: { type: "string", example: "Jan" },
+      last_name: { type: "string", example: "Kowalski" },
+      is_active: { type: "boolean", example: true },
+      created_at: { type: "string", format: "date-time" },
+    },
+  },
+  LoginResponse: {
+    type: "object",
+    properties: { user: { $ref: "#/components/schemas/User" } },
+  },
+};
+
+// kolejność w Swaggerze wg przepływu (next-swagger-doc układa ścieżki w kolejności skanowania plików)
+const IDENTITY_ORDER = ["register", "login", "me", "logout"].map((p) => `/api/v1/auth/${p}`);
+
+export const identitySpec = () => {
+  const spec = createSwaggerSpec({
+    apiFolder: "app/api/v1/auth",
+    definition: {
+      openapi: "3.0.0",
+      info: {
+        title: "Identity API",
+        version: "1.0",
+        description: "Rejestracja, logowanie i sesja oparta o cookie `auth_token` (HttpOnly, wygasa po 30 min bezczynności).",
+      },
+      tags: [{ name: "Identity" }],
+      components: {
+        schemas: identitySchemas,
+        securitySchemes: {
+          cookieAuth: { type: "apiKey", in: "cookie", name: "auth_token" },
+        },
+      },
+    },
+  }) as { paths?: Record<string, unknown> };
+  const paths = spec.paths ?? {};
+  spec.paths = Object.fromEntries(
+    Object.keys(paths)
+      .sort((a, b) => IDENTITY_ORDER.indexOf(a) - IDENTITY_ORDER.indexOf(b))
+      .map((k) => [k, paths[k]])
+  );
+  return spec;
+};
