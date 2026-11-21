@@ -14,6 +14,7 @@ export default function Home() {
         <a href="/product-docs" style={{ textDecoration: "underline" }}>Dokumentacja produktów</a>
         <a href="/notifications-docs" style={{ textDecoration: "underline" }}>Dokumentacja powiadomień</a>
         <a href="/identity-docs" style={{ textDecoration: "underline" }}>Dokumentacja identity</a>
+        <a href="/cart-docs" style={{ textDecoration: "underline" }}>Dokumentacja koszyka</a>
       </div>
       <AuthPanel />
       <Getter />

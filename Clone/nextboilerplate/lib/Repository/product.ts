@@ -1,4 +1,4 @@
-import { pool } from "../db";
+import { pool, type Queryable } from "../db";
 
 export type ProductInput = { name: string; price: number; quantity: number; category_id: number };
 
@@ -44,4 +44,17 @@ export async function update(id: number, p: ProductInput) {
 export async function remove(id: number) {
   const { rowCount } = await pool.query("DELETE FROM products WHERE id = $1", [id]);
   return (rowCount ?? 0) > 0;
+}
+
+/** Blokada wierszy produktów do końca transakcji (checkout) — nikt inny nie zmieni stanu w międzyczasie. */
+export async function lockForUpdate(ids: number[], db: Queryable) {
+  const { rows } = await db.query(
+    `SELECT id, name, price::float AS price, quantity FROM products WHERE id = ANY($1::int[]) ORDER BY id FOR UPDATE`,
+    [ids]
+  );
+  return rows as { id: number; name: string; price: number; quantity: number }[];
+}
+
+export async function decreaseQuantity(id: number, amount: number, db: Queryable) {
+  await db.query(`UPDATE products SET quantity = quantity - $1 WHERE id = $2`, [amount, id]);
 }

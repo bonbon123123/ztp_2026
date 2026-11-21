@@ -208,3 +208,113 @@ export const identitySpec = () => {
   );
   return spec;
 };
+
+const cartItem = {
+  type: "object",
+  properties: {
+    item_id: { type: "integer", example: 1 },
+    product_id: { type: "integer", example: 1 },
+    product_name: { type: "string", example: "Rogal" },
+    unit_price: { type: "number", description: "Cena bieżąca", example: 3.5 },
+    quantity: { type: "integer", example: 2 },
+    line_total: { type: "number", example: 7 },
+    available_quantity: { type: "integer", description: "Stan magazynowy", example: 20 },
+  },
+};
+
+const orderSummary = {
+  id: { type: "integer", example: 1 },
+  order_number: { type: "string", example: "ZAM-20261121-000001" },
+  status: { type: "string", example: "PENDING" },
+  items_count: { type: "integer", description: "Liczba sztuk", example: 3 },
+  total_amount: { type: "number", example: 206.99 },
+  created_at: { type: "string", format: "date-time" },
+};
+
+const cartSchemas = {
+  Error,
+  CartItemCreate: {
+    type: "object",
+    required: ["product_id", "quantity"],
+    properties: {
+      product_id: { type: "integer", example: 1 },
+      quantity: { type: "integer", minimum: 1, description: "Dodatnia liczba całkowita ≤ stan magazynu", example: 2 },
+    },
+  },
+  CartItemUpdate: {
+    type: "object",
+    required: ["quantity"],
+    properties: { quantity: { type: "integer", minimum: 1, example: 3 } },
+  },
+  CartItem: cartItem,
+  Cart: {
+    type: "object",
+    properties: {
+      id: { type: "integer", example: 1 },
+      user_id: { type: "integer", example: 1 },
+      items: { type: "array", items: { $ref: "#/components/schemas/CartItem" } },
+      items_count: { type: "integer", description: "Liczba sztuk w koszyku", example: 2 },
+      total_amount: { type: "number", example: 7 },
+      updated_at: { type: "string", format: "date-time" },
+    },
+  },
+  OrderItem: {
+    type: "object",
+    properties: {
+      id: { type: "integer", example: 1 },
+      product_id: { type: "integer", example: 1 },
+      product_name: { type: "string", description: "Snapshot z chwili zakupu", example: "Rogal" },
+      unit_price: { type: "number", description: "Snapshot ceny z chwili zakupu", example: 3.5 },
+      quantity: { type: "integer", example: 2 },
+      line_total: { type: "number", example: 7 },
+    },
+  },
+  OrderSummary: { type: "object", properties: orderSummary },
+  Order: {
+    type: "object",
+    properties: {
+      ...orderSummary,
+      user_id: { type: "integer", example: 1 },
+      items: { type: "array", items: { $ref: "#/components/schemas/OrderItem" } },
+    },
+  },
+};
+
+// kolejność w Swaggerze wg przepływu: koszyk → checkout → historia
+const CART_ORDER = [
+  "/api/v1/cart",
+  "/api/v1/cart/items",
+  "/api/v1/cart/items/{item_id}",
+  "/api/v1/cart/checkout",
+  "/api/v1/orders",
+  "/api/v1/orders/{order_id}",
+];
+
+export const cartSpec = () => {
+  const spec = createSwaggerSpec({
+    apiFolder: "app/api/v1/cart",
+    schemaFolders: ["app/api/v1/orders"], // drugi skanowany folder — historia zamówień w tej samej dokumentacji
+    definition: {
+      openapi: "3.0.0",
+      info: {
+        title: "Cart API",
+        version: "1.0",
+        description: "Koszyk, checkout i historia zamówień. Wymaga zalogowania (cookie `auth_token` z /identity-docs).",
+      },
+      tags: [{ name: "Cart" }, { name: "Orders" }],
+      components: {
+        schemas: cartSchemas,
+        securitySchemes: {
+          cookieAuth: { type: "apiKey", in: "cookie", name: "auth_token" },
+        },
+      },
+    },
+  }) as { paths?: Record<string, unknown> };
+  const paths = spec.paths ?? {};
+  spec.paths = Object.fromEntries(
+    Object.keys(paths)
+      .sort((a, b) => CART_ORDER.indexOf(a) - CART_ORDER.indexOf(b))
+      .map((k) => [k, paths[k]])
+  );
+  return spec;
+};

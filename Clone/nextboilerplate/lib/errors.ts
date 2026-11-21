@@ -13,6 +13,9 @@ export function handleError(e: unknown) {
   if ((e as { code?: string })?.code === "23505") {
     return NextResponse.json({ error: "Nazwa już istnieje" }, { status: 409 });
   }
+  if ((e as { code?: string })?.code === "23503") {
+    return NextResponse.json({ error: "Nie można usunąć — produkt występuje w zamówieniach" }, { status: 409 });
+  }
   console.error(e);
   return NextResponse.json({ error: "Błąd serwera" }, { status: 500 });
 }

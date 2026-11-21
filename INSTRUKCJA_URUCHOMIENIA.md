@@ -30,7 +30,7 @@ Odczekaj ~5 s i wgraj tabele po kolei (z katalogu `ztp_2026/`):
 
 ```bash
 cd ../..          # jesteś w ztp_2026/
-for f in sql/001.Create.Tables sql/002.History.Table.sql sql/003.Notifications.sql sql/004.Notifications.Idempotency.sql sql/005.Identity.sql; do
+for f in sql/001.Create.Tables sql/002.History.Table.sql sql/003.Notifications.sql sql/004.Notifications.Idempotency.sql sql/005.Identity.sql sql/006.Cart.sql; do
   docker exec -i postgres_ztp_project1 psql -U appuser appdb < "$f"
 done
 ```
@@ -38,11 +38,12 @@ done
 Windows (PowerShell), zamiast pętli wyżej:
 
 ```powershell
-Get-Content sql\001.Create.Tables, sql\002.History.Table.sql, sql\003.Notifications.sql, sql\004.Notifications.Idempotency.sql, sql\005.Identity.sql | docker exec -i postgres_ztp_project1 psql -U appuser appdb
+Get-Content sql\001.Create.Tables, sql\002.History.Table.sql, sql\003.Notifications.sql, sql\004.Notifications.Idempotency.sql, sql\005.Identity.sql, sql\006.Cart.sql | docker exec -i postgres_ztp_project1 psql -U appuser appdb
 ```
 
 Sprawdzenie: `docker exec postgres_ztp_project1 psql -U appuser appdb -c "\dt"` powinno pokazać
-7 tabel: categories, forbidden_names, notifications, product_history, products, user_sessions, users.
+11 tabel: cart_items, carts, categories, forbidden_names, notifications, order_items, orders, product_history,
+products, user_sessions, users.
 
 ## 3. Plik .env
 
@@ -86,6 +87,7 @@ W terminalu powinno pojawić się `[WORKER] Uruchomiono worker. Interwał: 5 s`.
 | Swagger — produkty | http://localhost:3000/product-docs |
 | Swagger — powiadomienia | http://localhost:3000/notifications-docs |
 | Swagger — identity (rejestracja, logowanie, sesja) | http://localhost:3000/identity-docs |
+| Swagger — koszyk i zamówienia (wymaga zalogowania w /identity-docs) | http://localhost:3000/cart-docs |
 | Metryki | http://localhost:3000/metrics |
 | MailHog (maile) | http://localhost:8025 |
 | ntfy (push, topic `test`) | http://localhost:8088/test |
