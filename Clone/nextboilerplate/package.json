@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "luxon": "^3.7.2",
-    "next": "16.4.2",
+    "next": "^16.4.6",
     "next-swagger-doc": "^0.5.0",
     "nodemailer": "^10.4.0",
     "pg": "^8.23.1",
@@ -28,7 +28,7 @@
     "@types/pg": "^8.23.1",
     "@types/react": "19.3.0",
     "eslint": "^9",
-    "eslint-config-next": "16.4.2",
+    "eslint-config-next": "^16.4.6",
     "jest": "^30.5.2",
     "tailwindcss": "^4"
   }

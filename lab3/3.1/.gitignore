@@ -1,0 +1,12 @@
+# Środowisko wirtualne
+.venv/
+venv/
+ENV/
+
+# Pliki tymczasowe Pythona
+__pycache__/
+*.pyc
+
+#Pliki serwisowe
+server.yml
+scripts/_send_ntfy.ps1
